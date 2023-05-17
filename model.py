@@ -1,8 +1,6 @@
 import logging
 import numpy as np 
 import tensorflow as tf
-from tensorflow.contrib import slim
-from tensorflow.contrib import layers
 from memory import DKVMN
 from utils import getLogger
 
@@ -41,21 +39,21 @@ class DeepIRTModel(object):
 
     def _create_placeholder(self):
         logger.info("Initializing Placeholder")
-        self.q_data = tf.placeholder(tf.int32, [self.args.batch_size, self.args.seq_len], name='q_data')
-        self.qa_data = tf.placeholder(tf.int32, [self.args.batch_size, self.args.seq_len], name='qa_data')
-        self.label = tf.placeholder(tf.float32, [self.args.batch_size, self.args.seq_len], name='label')
+        self.q_data = tf.compat.v1.placeholder(tf.int32, [self.args.batch_size, self.args.seq_len], name='q_data')
+        self.qa_data = tf.compat.v1.placeholder(tf.int32, [self.args.batch_size, self.args.seq_len], name='qa_data')
+        self.label = tf.compat.v1.placeholder(tf.float32, [self.args.batch_size, self.args.seq_len], name='label')
 
     def _influence(self):
         # Initialize Memory
         logger.info("Initializing Key and Value Memory")
-        with tf.variable_scope("Memory"):
-            init_key_memory = tf.get_variable(
+        with tf.compat.v1.variable_scope("Memory"):
+            init_key_memory = tf.compat.v1.get_variable(
                 'key_memory_matrix', [self.args.memory_size, self.args.key_memory_state_dim],
-                initializer=tf.truncated_normal_initializer(stddev=0.1)
+                initializer=tf.compat.v1.truncated_normal_initializer(stddev=0.1)
             )
-            init_value_memory = tf.get_variable(
+            init_value_memory = tf.compat.v1.get_variable(
                 'value_memory_matrix', [self.args.memory_size, self.args.value_memory_state_dim],
-				initializer=tf.truncated_normal_initializer(stddev=0.1)
+				initializer=tf.compat.v1.truncated_normal_initializer(stddev=0.1)
             )
         
         # Boardcast value-memory matrix to Shape (batch_size, memory_size, memory_value_state_dim)
@@ -78,14 +76,14 @@ class DeepIRTModel(object):
 
         # Initialize Embedding
         logger.info("Initializing Q and QA Embedding")
-        with tf.variable_scope('Embedding'):
-            q_embed_matrix = tf.get_variable(
+        with tf.compat.v1.variable_scope('Embedding'):
+            q_embed_matrix = tf.compat.v1.get_variable(
                 'q_embed', [self.args.n_questions+1, self.args.key_memory_state_dim],
-                initializer=tf.truncated_normal_initializer(stddev=0.1)
+                initializer=tf.compat.v1.truncated_normal_initializer(stddev=0.1)
             )
-            qa_embed_matrix = tf.get_variable(
+            qa_embed_matrix = tf.compat.v1.get_variable(
                 'qa_embed', [2*self.args.n_questions+1, self.args.value_memory_state_dim],
-                initializer=tf.truncated_normal_initializer(stddev=0.1)
+                initializer=tf.compat.v1.truncated_normal_initializer(stddev=0.1)
             )
 
         # Embedding to Shape (batch size, seq_len, memory_state_dim(d_k or d_v))
@@ -136,31 +134,25 @@ class DeepIRTModel(object):
             # Build the feature vector -- summary_vector
             mastery_level_prior_difficulty = tf.concat([self.read_content, q], 1)
 
-            self.summary_vector = layers.fully_connected(
+            self.summary_vector = tf.compat.v1.layers.dense(
                 inputs=mastery_level_prior_difficulty,
-                num_outputs=self.args.summary_vector_output_dim,
-                scope='SummaryOperation',
-                reuse=reuse_flag,
-                activation_fn=tf.nn.tanh
+                units=self.args.summary_vector_output_dim,
+                activation=tf.nn.tanh
             )
             logger.debug("summary_vector: {}".format(self.summary_vector))
 
             # Calculate the student ability level from summary vector
-            student_ability = layers.fully_connected(
+            student_ability = tf.compat.v1.layers.dense(
                 inputs=self.summary_vector,
-                num_outputs=1,
-                scope='StudentAbilityOutputLayer',
-                reuse=reuse_flag,
-                activation_fn=None
+                units=1,
+                activation=None
             )
 
             # Calculate the question difficulty level from the question embedding
-            question_difficulty = layers.fully_connected(
+            question_difficulty = tf.compat.v1.layers.dense(
                 inputs=q,
-                num_outputs=1,
-                scope='QuestionDifficultyOutputLayer',
-                reuse=reuse_flag,
-                activation_fn=tf.nn.tanh
+                units=1,
+                activation=tf.nn.tanh
             )
 
             # Prediction
@@ -218,12 +210,12 @@ class DeepIRTModel(object):
 
         # convert the prediction probability to logit, i.e., log(p/(1-p))
         epsilon = 1e-6
-        clipped_filtered_pred = tf.clip_by_value(filtered_pred, epsilon, 1.-epsilon)
-        filtered_logits = tf.log(clipped_filtered_pred/(1-clipped_filtered_pred))
+        clipped_filtered_pred = tf.compat.v1.clip_by_value(filtered_pred, epsilon, 1.-epsilon)
+        filtered_logits = tf.compat.v1.log(clipped_filtered_pred/(1-clipped_filtered_pred))
 
         # cross entropy loss
-        cross_entropy = tf.reduce_mean(
-            tf.nn.sigmoid_cross_entropy_with_logits(
+        cross_entropy = tf.compat.v1.reduce_mean(
+            tf.compat.v1.nn.sigmoid_cross_entropy_with_logits(
                 logits=filtered_logits, 
                 labels=filtered_label
             )
@@ -232,20 +224,27 @@ class DeepIRTModel(object):
         self.loss = cross_entropy
 
     def _create_optimizer(self):
-        with tf.variable_scope('Optimizer'):
-            self.optimizer = tf.train.AdamOptimizer(learning_rate=self.args.learning_rate)
+        with tf.compat.v1.variable_scope('Optimizer'):
+            self.optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate=self.args.learning_rate)
             gvs = self.optimizer.compute_gradients(self.loss)
-            clipped_gvs = [(tf.clip_by_norm(grad, self.args.max_grad_norm), var) for grad, var in gvs]
-            self.train_op = self.optimizer.apply_gradients(clipped_gvs)
+            # print('self.loss', self.loss)
+            # gvs_new = []
+            # for grad, var in gvs:
+            #     if grad is not None:
+            #         gvs_new.append([grad, var])
+            #         # print(grad)
+            #         # print(self.args.max_grad_norm)
+            # clipped_gvs = [(tf.compat.v1.clip_by_norm(grad, self.args.max_grad_norm), var) for grad, var in gvs]
+            self.train_op = self.optimizer.apply_gradients(gvs)
 
     def _add_summary(self):
-        tf.summary.scalar('Loss', self.loss)
-        self.tensorboard_writer = tf.summary.FileWriter(
+        tf.compat.v1.summary.scalar('Loss', self.loss)
+        self.tensorboard_writer = tf.compat.v1.summary.FileWriter(
             logdir=self.args.tensorboard_dir,
             graph=self.sess.graph
         )
 
-        model_vars = tf.trainable_variables()
+        model_vars = tf.compat.v1.trainable_variables()
 
         total_size = 0
         total_bytes = 0

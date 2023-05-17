@@ -16,8 +16,8 @@ logger = getLogger('Deep-IRT-model')
 # argument parser
 parser = argparse.ArgumentParser()
 # dataset can be assist2009, assist2015, statics2011, synthetic, fsai
-parser.add_argument('--dataset', default='assist2009', 
-                    help="'assist2009', 'assist2015', 'statics2011', 'synthetic', 'fsai'")
+parser.add_argument('--dataset', default='test', 
+                    help="'test'")
                     
 parser.add_argument('--save', type=bool, default=False)
 parser.add_argument('--cpu', type=bool, default=False)
@@ -52,7 +52,7 @@ for directory in [args.checkpoint_dir, args.result_log_dir, args.tensorboard_dir
 
 def train(model, train_q_data, train_qa_data, 
             valid_q_data, valid_qa_data, result_log_path, args):
-    saver = tf.train.Saver()
+    saver = tf.compat.v1.train.Saver()
     best_loss = 1e6
     best_acc = 0.0
     best_auc = 0.0
@@ -93,14 +93,14 @@ def train(model, train_q_data, train_qa_data,
             f.write(result_msg)
 
         # add to tensorboard
-        tf_summary = tf.Summary(
+        tf_summary = tf.compat.v1.Summary(
             value=[
-                tf.Summary.Value(tag="train_loss", simple_value=train_loss),
-                tf.Summary.Value(tag="train_auc", simple_value=train_auc),
-                tf.Summary.Value(tag="train_accuracy", simple_value=train_accuracy),
-                tf.Summary.Value(tag="valid_loss", simple_value=valid_loss),
-                tf.Summary.Value(tag="valid_auc", simple_value=valid_auc),
-                tf.Summary.Value(tag="valid_accuracy", simple_value=valid_accuracy),
+                tf.compat.v1.Summary.Value(tag="train_loss", simple_value=train_loss),
+                tf.compat.v1.Summary.Value(tag="train_auc", simple_value=train_auc),
+                tf.compat.v1.Summary.Value(tag="train_accuracy", simple_value=train_accuracy),
+                tf.compat.v1.Summary.Value(tag="valid_loss", simple_value=valid_loss),
+                tf.compat.v1.Summary.Value(tag="valid_auc", simple_value=valid_auc),
+                tf.compat.v1.Summary.Value(tag="valid_accuracy", simple_value=valid_accuracy),
             ]
         )
         model.tensorboard_writer.add_summary(tf_summary, epoch)
@@ -132,21 +132,22 @@ def train(model, train_q_data, train_qa_data,
     return best_auc, best_acc, best_loss
 
 def cross_validation():
-    tf.set_random_seed(1234)
-    config = tf.ConfigProto()
+    tf.random.set_seed(1234)
+    config = tf.compat.v1.ConfigProto()
     config.gpu_options.allow_growth = True
     if args.cpu:
         os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
     aucs, accs, losses = list(), list(), list()
-    for i in range(5):
-        tf.reset_default_graph()
+    for i in range(1):
+        # ループの数はtrainファイルの数
+        tf.compat.v1.reset_default_graph()
         logger.info("Cross Validation {}".format(i+1))
         result_csv_path = os.path.join(args.result_log_dir, 'fold-{}-result'.format(i)+'.csv')
 
-        with tf.Session(config=config) as sess:
+        with tf.compat.v1.Session(config=config) as sess:
             data_loader = DataLoader(args.n_questions, args.seq_len, ',')
             model = DeepIRTModel(args, sess, name="Deep-IRT")
-            sess.run(tf.global_variables_initializer())
+            sess.run(tf.compat.v1.global_variables_initializer())
             if args.train:
                 train_data_path = os.path.join(args.data_dir, args.data_name+'_train{}.csv'.format(i))
                 valid_data_path = os.path.join(args.data_dir, args.data_name+'_valid{}.csv'.format(i))

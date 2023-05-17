@@ -2,7 +2,6 @@ import logging
 import os
 import numpy as np
 import tensorflow as tf
-from tensorflow.contrib import layers
 from utils import getLogger
 
 # set logger
@@ -68,21 +67,17 @@ class MemoryHeadGroup():
         assert self.is_write
 
         # erase_vector/erase_signal: Shape (batch_size, value_memory_state_dim)
-        erase_signal = layers.fully_connected(
+        erase_signal = tf.compat.v1.layers.dense(
             inputs=embedded_content_vector, 
-            num_outputs=self.memory_state_dim,
-            scope=self.name+'/EraseOperation',
-            reuse=reuse,
-            activation_fn=tf.sigmoid
+            units=self.memory_state_dim,
+            activation=tf.sigmoid
         )
 
         # add_vector/add_signal: Shape (batch_size, value_memory_state_dim)
-        add_signal = layers.fully_connected(
+        add_signal = tf.compat.v1.layers.dense(
             inputs=embedded_content_vector,
-            num_outputs=self.memory_state_dim,
-            scope=self.name+'/AddOperation',
-            reuse=reuse,
-            activation_fn=tf.tanh
+            units=self.memory_state_dim,
+            activation=tf.tanh
         )
 
         # reshape from (batch_size, value_memory_state_dim) to (batch_size, 1, value_memory_state_dim)

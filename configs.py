@@ -14,6 +14,8 @@ class ModelConfigFactory():
             return SyntheticConfig(args).get_args()
         elif args.dataset == 'fsai':
             return FSAIConfig(args).get_args()
+        elif args.dataset == 'test':
+            return TESTConfig(args).get_args()
         else:
             raise ValueError("The '{}' is not available".format(args.dataset))
 
@@ -212,6 +214,35 @@ class FSAIConfig(ModelConfig):
             'n_questions': 2266,
             'data_dir': './data/fsaif1tof3',
             'data_name': 'fsaif1tof3',
+            # DKVMN param
+            'memory_size': 50,
+            'key_memory_state_dim': 50,
+            'value_memory_state_dim': 100,
+            'summary_vector_output_dim': 50,
+            # parameter for the SA Network and KCD network
+            'student_ability_layer_structure': None,
+            'question_difficulty_layer_structure': None,
+            'discimination_power_layer_structure': None
+        }
+        return default_setting
+    
+
+class TESTConfig(ModelConfig):
+    def get_default_setting(self):
+        default_setting = {
+            # training setting
+            'n_epochs': 50,
+            'batch_size': 8,
+            'train': True,
+            'show': True,
+            'learning_rate': 0.003,
+            'max_grad_norm': 10.0,
+            'use_ogive_model': False,
+            # dataset param
+            'seq_len': 220,
+            'n_questions': 160,
+            'data_dir': './data/test',
+            'data_name': 'test',
             # DKVMN param
             'memory_size': 50,
             'key_memory_state_dim': 50,
